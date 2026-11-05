@@ -3,29 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pipeline DevSecOps</title>
+  <title>Rango Rápido — Delivery</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>Pipeline DevSecOps</h1>
-    <p class="subtitulo">Do commit ao cluster kind, com qualidade e segurança em cada etapa.</p>
+  <header class="topo">
+    <div class="marca">
+      <span class="logo" aria-hidden="true">🛵</span>
+      <span>Rango Rápido</span>
+    </div>
+    <a class="carrinho-link" href="#carrinho">Carrinho (<span id="contador">0</span>)</a>
   </header>
 
-  <main>
-    <section>
-      <h2>Etapas da pipeline</h2>
-      <ol id="etapas" class="etapas"></ol>
+  <section class="destaque">
+    <h1>Fome? A gente leva.</h1>
+    <p>Escolha seu prato e receba em até 40 minutos.</p>
+  </section>
+
+  <main class="conteudo">
+    <section aria-labelledby="titulo-cardapio">
+      <h2 id="titulo-cardapio">Cardápio</h2>
+      <div class="filtros" id="filtros"></div>
+      <div class="cardapio" id="cardapio"></div>
     </section>
 
-    <section>
-      <h2>Integrantes</h2>
-      <ul id="integrantes" class="integrantes"></ul>
-    </section>
+    <aside class="carrinho" id="carrinho" aria-labelledby="titulo-carrinho">
+      <h2 id="titulo-carrinho">Seu pedido</h2>
+      <ul id="itens-carrinho" class="itens-carrinho"></ul>
+      <p id="carrinho-vazio" class="vazio">Seu carrinho está vazio.</p>
+      <div class="linha-total">
+        <span>Entrega</span>
+        <span id="taxa">R$ 0,00</span>
+      </div>
+      <div class="linha-total total">
+        <span>Total</span>
+        <span id="total">R$ 0,00</span>
+      </div>
+      <button id="finalizar" class="botao botao-cheio" type="button" disabled>Finalizar pedido</button>
+      <p id="mensagem" class="mensagem" role="status"></p>
+    </aside>
   </main>
 
-  <footer>
-    <p>Versão: <span id="versao">local</span></p>
+  <footer class="rodape">
+    <p>Projeto de DevSecOps — <span id="integrantes"></span></p>
   </footer>
 
   <script src="app.js"></script>
