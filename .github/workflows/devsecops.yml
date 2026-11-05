@@ -29,6 +29,17 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
 
+      - name: Relatório do Sonar no resumo
+        if: always()
+        run: |
+          KEY=$(grep '^sonar.projectKey=' sonar-project.properties | cut -d= -f2)
+          {
+            echo "## Relatório SonarCloud"
+            echo "Resultado do job: **${{ job.status }}**"
+            echo ""
+            echo "Painel completo: https://sonarcloud.io/summary/overall?id=${KEY}&branch=${GITHUB_REF_NAME}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   trivy-code:
     name: Segurança do código (Trivy fs)
     runs-on: ubuntu-latest
@@ -42,7 +53,28 @@ jobs:
           scan-ref: .
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
+          format: table
+          output: trivy-codigo.txt
           exit-code: '1'
+
+      - name: Relatório do Trivy (código) no resumo
+        if: always()
+        run: |
+          cat trivy-codigo.txt
+          {
+            echo "## Relatório Trivy — código (vuln, secret, misconfig)"
+            echo '```'
+            if [ -s trivy-codigo.txt ]; then cat trivy-codigo.txt; else echo "Nenhum achado HIGH/CRITICAL."; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Salvar relatório (código)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: relatorio-trivy-codigo
+          path: trivy-codigo.txt
+          if-no-files-found: warn
 
   build-push:
     name: Build, scan da imagem e push
@@ -60,7 +92,28 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          format: table
+          output: trivy-imagem.txt
           exit-code: '1'
+
+      - name: Relatório do Trivy (imagem) no resumo
+        if: always()
+        run: |
+          cat trivy-imagem.txt
+          {
+            echo "## Relatório Trivy — imagem ${IMAGE_NAME}:${IMAGE_TAG}"
+            echo '```'
+            if [ -s trivy-imagem.txt ]; then cat trivy-imagem.txt; else echo "Nenhum achado HIGH/CRITICAL."; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Salvar relatório (imagem)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: relatorio-trivy-imagem
+          path: trivy-imagem.txt
+          if-no-files-found: warn
 
       - name: Login no Docker Hub
         if: github.event_name != 'pull_request'
@@ -75,28 +128,47 @@ jobs:
           docker push "$IMAGE_NAME:$IMAGE_TAG"
           docker push "$IMAGE_NAME:latest"
 
+  # O cluster é persistente: o site fica no ar em http://localhost:8080.
   deploy:
-    name: Deploy no kind
-    runs-on: ubuntu-latest
+    name: Deploy no kind (self-hosted)
+    runs-on: [self-hosted, kind]
     needs: build-push
     if: github.event_name != 'pull_request'
+    defaults:
+      run:
+        shell: powershell
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Criar cluster kind
-        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
-        with:
-          cluster_name: devsecops
+      - name: Garantir cluster kind
+        run: |
+          $clusters = @(kind get clusters)
+          if ($clusters -notcontains 'devsecops') {
+            kind create cluster --name devsecops --config kind/kind-config.yaml --wait 120s
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          kubectl config use-context kind-devsecops
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Aplicar manifestos
         run: |
-          sed -i "s|IMAGEM_AQUI|$IMAGE_NAME:$IMAGE_TAG|" k8s/deployment.yaml
+          $imagem = "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          (Get-Content k8s/deployment.yaml) -replace 'IMAGEM_AQUI', $imagem | Set-Content k8s/deployment.yaml
           kubectl apply -f k8s/
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           kubectl rollout status deployment/front --timeout=180s
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Testar aplicação
         run: |
-          kubectl port-forward svc/front 8080:80 &
-          sleep 3
-          curl --fail --retry 5 --retry-delay 2 --retry-all-errors http://localhost:8080 | head -n 15
+          for ($i = 1; $i -le 10; $i++) {
+            try {
+              $r = Invoke-WebRequest http://localhost:8080 -UseBasicParsing -TimeoutSec 5
+              Write-Host "HTTP $($r.StatusCode) - site no ar em http://localhost:8080"
+              break
+            } catch {
+              if ($i -eq 10) { throw }
+              Start-Sleep -Seconds 3
+            }
+          }
           kubectl get pods,svc -o wide
