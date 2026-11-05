@@ -54,6 +54,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          skip-dirs: apresentacao # material de demonstração com erros de propósito
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           format: table
@@ -77,6 +78,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
+          skip-dirs: apresentacao # material de demonstração com erros de propósito
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           limit-severities-for-sarif: true
