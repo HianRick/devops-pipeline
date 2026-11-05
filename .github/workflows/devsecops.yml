@@ -43,6 +43,9 @@ jobs:
   trivy-code:
     name: Segurança do código (Trivy fs)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # enviar SARIF para a aba Security
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -68,18 +71,43 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Trivy (código) em SARIF
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
+          format: sarif
+          output: trivy-codigo.sarif
+          exit-code: '0'
+
+      - name: Enviar resultado (código) para a aba Security
+        if: always() && hashFiles('trivy-codigo.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-codigo.sarif
+          category: trivy-codigo
+
       - name: Salvar relatório (código)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: relatorio-trivy-codigo
-          path: trivy-codigo.txt
+          path: |
+            trivy-codigo.txt
+            trivy-codigo.sarif
           if-no-files-found: warn
 
   build-push:
     name: Build, scan da imagem e push
     runs-on: ubuntu-latest
     needs: [sonar, trivy-code]
+    permissions:
+      contents: read
+      security-events: write # enviar SARIF para a aba Security
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -107,12 +135,33 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Trivy (imagem) em SARIF
+        if: always()
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          format: sarif
+          output: trivy-imagem.sarif
+          exit-code: '0'
+
+      - name: Enviar resultado (imagem) para a aba Security
+        if: always() && hashFiles('trivy-imagem.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-imagem.sarif
+          category: trivy-imagem
+
       - name: Salvar relatório (imagem)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: relatorio-trivy-imagem
-          path: trivy-imagem.txt
+          path: |
+            trivy-imagem.txt
+            trivy-imagem.sarif
           if-no-files-found: warn
 
       - name: Login no Docker Hub
