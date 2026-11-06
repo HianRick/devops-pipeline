@@ -52,7 +52,7 @@ Quem faz este passo precisa ser **dono/admin** do repositório (HianRick).
 
 ```powershell
 cd C:\actions-runner
-.\config.cmd --url https://github.com/HianRick/devops-pipeline --token <TOKEN_DA_PAGINA> --name pc-apresentacao --labels kind --work _work
+.\config.cmd --url https://github.com/HianRick/devops-pipeline --token BK7ZVCINAH3W3HGN4MRV76DK5ZQHU --name pc-apresentacao --labels kind --work _work
 ```
 
 Respostas durante a configuração:
